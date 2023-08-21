@@ -11,62 +11,88 @@ prompt_new_key() {
 	do
 		echo Please paste your new public SSH key here:
 		read newKey
+		echo $newKey >> $HOME/.tmpkey
 
-		if [ "$newKey" == "$key" ] 
+		if [ "$(ssh-keygen -l -f $HOME/.tmpkey)" != "" ]
 		then
-		       echo ""
-		       echo ""
-		       echo You cannot reuse your old SSH key please generate a new one following the steps in
-		       echo https://irhpc.github.io/docs/connecting/connectingssh	
+
+		
+			if [ "$newKey" == "$key" ] 
+			then
+			       echo ""
+			       echo ""
+			       echo You cannot reuse your old SSH key please generate a new one following the steps in
+			       echo https://irhpc.github.io/docs/connecting/connectingssh	
+			else
+			       break
+			fi
 		else
-		       break
+			echo ""
+			echo ""
+			echo Something went wrong when validating your SSH key, please make sure you entered the key correctly and try again.
 		fi
+		rm .tmpkey
 	done
 }
 
 prompt_key_name() {
 	echo ""
 	echo ""
-	echo "Do you want to keep the name $REMOTEUSER for this key? (y/n)"
-       	read keep
-	if [ $keep == y ] || [ $keep == Y ] 
+	if [ "$REMOTEUSER" != "" ] 
 	then
-		RU=$REMOTEUSER
-	else
-		while true
-		do
-			echo Enter a name for your SSH key here:
-			read RU
-			
-			lines=$(grep -v "$key" $file | cut -d "=" -f 4 | cut -d "\"" -f 1)
-			echo $lines
-			
-			flag=true
-			for line in $lines
-			do
-				if [ "$line" == "$RU" ]
-				then
-					echo ""
-					echo "The name $line is already in use please pick a new one"
-					flag=false
-					break
-				fi
-			done
 
- 			if [ $flag == true ]
+		echo "Do you want to keep the name $REMOTEUSER for this key? (y/n)"
+		read keep
+
+		if [ $keep == y ] || [ $keep == Y ] 
+		then
+			RU=$REMOTEUSER
+			return
+		fi
+	fi
+
+	while true
+	do
+		echo Enter a name for your SSH key here:
+		read RU
+		
+		lines=$(grep -v "$key" $file | cut -d "=" -f 4 | cut -d "\"" -f 1)
+		echo $lines
+		
+		flag=true
+		for line in $lines
+		do
+			if [ "$line" == "$RU" ]
 			then
+				echo ""
+				echo "The name $line is already in use please pick a new one"
+				flag=false
 				break
 			fi
 		done
-	fi	
+
+		if [ $flag == true ]
+		then
+			break
+		fi
+	done
+}
+
+remove_old() {
+	# Remove old key from the file
+	sed -i "\:$ssh:d" $file 
+
+}
+
+remove_update() {
+	# Remove old key at $key_pos
+	sed -i "${key_pos}d" $file
 }
 
 add_new_key() {
-	# Remove old key from the file
-	sed -i "\:$ssh:d" $file 
 	newExp=$(date -d "+60 days" '+%Y%m%d')
 	newLine="expiry-time=\"$newExp\",environment=\"REMOTEUSER=$RU\",environment=\"DATESET=$today\" $newKey"
-	echo $newLine >> $file
+	echo "$newLine" >> "$file"
 	clear
 	echo ""
 	echo ""
@@ -74,46 +100,96 @@ add_new_key() {
 	echo "If you encounter any problems do not hesitate to contact help@hi.is"
 }
 
-# file="/users/home/$USER/.ssh/authorized_keys"
+gather_info() {
+	# Prompt user for a new key will be available as the variable $newKey 
+	prompt_new_key 
+	# Prompt user for a $REMOTEUSER name. This variable is available as $RU
+	prompt_key_name
+}
+
 
 
 # Find authorized_keys file
-file="/$USER/.ssh/authorized_keys"
-
-# Get current public key
-ssh=$(grep "REMOTEUSER=$REMOTEUSER" $file | cut -d ' ' -f 3)
-host=$(grep "REMOTEUSER=$REMOTEUSER" $file | cut -d ' ' -f 4)
-key="ssh-rsa $ssh $host"
-
-# Get line with current user
-expiry=$(grep "REMOTEUSER=$REMOTEUSER"  $file | cut -b 14-21)
+# file="/users/home/$USER/.ssh/authorized_keys"
+file="$HOME/.ssh/authorized_keys"
 
 # Get current date
 today=$(date '+%Y%m%d')
 
-# Check expiry-date
-days=$(( ($(date --date=$expiry +%s) - $(date --date=$today +%s) )/(60*60*24) ))
 
-if [ $days -lt 8 ]
+# If a user connects using an older SSH key that has not been updated with the new format 
+# we prompt them to update their SSH key immediately
+if [ "$REMOTEUSER" == "" ] 
 then
 	clear -x
-	echo Your SSH key will expire in $days day\(s\)
-	echo Would you like to update your SSH key now?\(y/n\)
-	read updt
-	if [ $updt == y ] || [ $updt == Y ]
-	then
-		# Prompt user for a new key will be available as the variable $newKey 
-		prompt_new_key 
-		# Prompt user for a $REMOTEUSER name. This variable is available as $RU
-		prompt_key_name
-		# Overwrite old key with new key, adds new expiry-time 60 days from now
-		add_new_key
-
-	else
+	#TODO better prompt
+	echo Your SSH key needs to be updated
+	sleep 0.5
 		
-		echo "" 
-		echo Once your SSH key expires you will not have access to Elja 
-		echo and will have to contact help@hi.is to update your SSH key.
+	# Get footprint of current SSH session
+	curr_fpt=$(sed -ne "/sshd.\($((($(ps ho ppid $PPID))))\|$PPID\).:.*\(Accepted publickey\|matching .SA key\)/{s/^.* //g;h};\${x;p}" /var/log/sshdusers.log)
+	# Gets footprints of all user stored stored public keys
+	fpts=$(ssh-keygen -l -E sha256 -f $file | cut -d ' ' -f 2)
+
+	lineno=1
+
+	if [ "$curr_fpt" == "" ] 
+	then
+		echo "Could not distinguish your SSH footprint, please contact help@hi.is"
+		return 1
+	fi
+	
+	for fpt in $fpts 
+	do
+		if [ "$fpt" == "$curr_fpt" ]
+		then
+			key_pos=$lineno
+			break
+		fi	
+		lineno=$(( lineno+1 ))
+	done
+	
+	if [ $key_pos -lt 0 ] 
+	then
+		echo "Could not find a matching SSH footprint, please contact help@hi.is"
+		return 1
+	fi
+
+	gather_info
+	remove_update
+	add_new_key
+else 
+	# Get current public key
+	ssh=$(grep "REMOTEUSER=$REMOTEUSER" $file | cut -d ' ' -f 3)
+	host=$(grep "REMOTEUSER=$REMOTEUSER" $file | cut -d ' ' -f 4)
+	key="ssh-rsa $ssh $host"
+
+	# Get line with current user
+	expiry=$(grep "REMOTEUSER=$REMOTEUSER"  $file | cut -b 14-21)
+
+	# Check expiry-date
+	days=$(( ($(date --date=$expiry +%s) - $(date --date=$today +%s) )/(60*60*24) ))
+
+	if [ $days -lt 8 ]
+	then
+		clear -x
+		echo Your SSH key will expire in $days day\(s\)
+		echo Would you like to update your SSH key now?\(y/n\)
+		read updt
+		if [ $updt == y ] || [ $updt == Y ]
+		then
+			gather_info
+			remove_old
+			# Overwrite old key with new key, adds new expiry-time 60 days from now
+			add_new_key
+
+		else
+			
+			echo "" 
+			echo Once your SSH key expires you will not have access to Elja 
+			echo and will have to contact help@hi.is to update your SSH key.
+		fi
 	fi
 fi
 
+cat /etc/motd
