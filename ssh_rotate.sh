@@ -19,17 +19,17 @@ prompt_new_key() {
 		spaces=$(echo $newKey | tr -d -c ' ' | wc -m)
 		
 		# Check if key starts with "ssh-rsa"
-		if [ "$(echo $myVar | cut -d ' ' -f 1)" == "ssh-rsa" ]
+		if [ "$(echo $newKey | cut -d ' ' -f 1)" == "ssh-rsa" ]
 		then
 			hasSSH=true
 		else
 			hasSSH=false
 		fi
+		echo $hasSSH
 
 		# Check if key has more whitespace than we want
 		if [ $spaces -gt 3 ]
 		then
-			echo "heere"
 			myVar=$(echo $newKey | tr -d '[:blank:]')
 		fi
 
