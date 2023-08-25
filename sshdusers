@@ -1,0 +1,12 @@
+/var/log/sshdusers.log {
+ rotate 3
+ daily
+ compress
+ missingok
+ postrotate
+       touch /var/log/sshdusers.log
+       chmod 644 /var/log/sshdusers.log
+       /usr/bin/systemctl restart rsyslog
+ endscript
+ notifempty
+}
