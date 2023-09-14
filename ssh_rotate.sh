@@ -6,7 +6,7 @@ NC='\033[0m'
 
 prompt_new_key() {
 	echo ""
-	echo Following the steps outlined in https://irhpc.github.io/docs/connecting/connectingssh
+	echo Following the steps outlined in https://replacewithlink.com/docs/connecting/connectingssh
 	echo -e  "generate a new SSH key. ${RED}Plase make sure that the key in a single line that starts with \"ssh-rsa\" ${NC} "
        	
 
@@ -48,7 +48,7 @@ prompt_new_key() {
 			       echo ""
 			       echo ""
 			       echo You cannot reuse your old SSH key please generate a new one following the steps in
-			       echo https://irhpc.github.io/docs/connecting/connectingssh	
+			       echo https://replacewithlink.com/docs/connecting/connectingssh	
 			else
 			       break
 			fi
