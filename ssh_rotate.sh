@@ -135,7 +135,7 @@ add_new_key() {
 	echo ""
 	echo ""
 	echo "Your new SSH key is valid until $(date -d "+60 days")"
-	echo "If you encounter any problems do not hesitate to contact help@hi.is"
+	echo "If you encounter any problems do not hesitate to contact help@xx.is"
 }
 
 gather_info() {
@@ -172,7 +172,7 @@ then
 
 	if [ "$curr_fpt" == "" ] 
 	then
-		echo "Could not distinguish your SSH footprint, please contact help@hi.is"
+		echo "Could not distinguish your SSH footprint, please contact help@xx.is"
 		return 1
 	fi
 	
@@ -188,7 +188,7 @@ then
 	
 	if [ $key_pos -lt 0 ] 
 	then
-		echo "Could not find a matching SSH footprint, please contact help@hi.is"
+		echo "Could not find a matching SSH footprint, please contact help@xx.is"
 		return 1
 	fi
 		gather_info
@@ -222,8 +222,8 @@ else
 		else
 			
 			echo "" 
-			echo -e "${RED}Once your SSH key expires you will not have access to Elja" 
-			echo -e "and will have to contact help@hi.is to update your SSH key.${NC}"
+			echo -e "${RED}Once your SSH key expires you will not have access to xx" 
+			echo -e "and will have to contact help@xx.is to update your SSH key.${NC}"
 		fi
 	fi
 
